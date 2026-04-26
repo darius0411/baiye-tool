@@ -121,8 +121,33 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;
 .sph li::before{content:'▸';position:absolute;left:0;color:#484f58;}
 .sph li strong{color:#c9d1d9;}
 </style>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 </head>
 <body>
+
+<!-- Password Overlay -->
+<div id="pwdOverlay" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(13,17,23,.97);z-index:999;display:flex;align-items:center;justify-content:center;">
+  <div style="background:#161b22;border:1px solid #30363d;border-radius:16px;padding:32px 28px;max-width:360px;width:92%;text-align:center;">
+    <div style="font-size:2.2rem;margin-bottom:8px;">⚔️</div>
+    <div style="font-size:1.15rem;font-weight:700;color:#e6edf3;margin-bottom:4px;">碧空盡 · 百業戰</div>
+    <div style="font-size:.82rem;color:#8b949e;margin-bottom:24px;">戰術指揮工具</div>
+    <input type="password" id="pwdInp" placeholder="輸入指揮密碼"
+      onkeydown="if(event.key==='Enter')tryLogin()"
+      style="width:100%;padding:11px 14px;background:#0d1117;border:1.5px solid #30363d;border-radius:9px;color:#fff;font-size:.95rem;font-family:inherit;margin-bottom:8px;box-sizing:border-box;">
+    <button onclick="tryLogin()"
+      style="width:100%;padding:12px;background:#1f6feb;color:#fff;border:none;border-radius:9px;font-size:.95rem;font-weight:700;cursor:pointer;margin-bottom:6px;">
+      🔐 指揮登入
+    </button>
+    <div id="pwdErr" style="color:#ef4444;font-size:.8rem;margin-bottom:10px;display:none;">密碼錯誤，請再試一次</div>
+    <div style="border-top:1px solid #30363d;padding-top:14px;">
+      <button onclick="memberLogin()"
+        style="width:100%;padding:12px;background:#21262d;color:#8b949e;border:1px solid #30363d;border-radius:9px;font-size:.95rem;font-weight:700;cursor:pointer;">
+        👁 以成員身份查看
+      </button>
+    </div>
+  </div>
+</div>
 
 <div class="hdr">
   <h1>⚔️ 碧空盡 · 百業戰 戰術指揮工具</h1>
@@ -163,7 +188,7 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;
 </div>
 
 <!-- Assignment -->
-<div class="assign-sect">
+<div class="assign-sect" id="assignSect" style="display:none">
   <div class="assign-title">
     👥 本場人員名單
     <span style="font-size:.75rem;color:#8b949e;font-weight:400;margin-left:6px;">
@@ -173,7 +198,7 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;
   <div class="assign-grid" id="assignGrid"></div>
 </div>
 
-<div class="actions">
+<div class="actions" id="actionsSect" style="display:none">
   <button class="btn btn-member" onclick="generateMemberHtml()">👥 生成成員版</button>
   <button class="btn btn-card" onclick="generatePDF()">📄 生成PDF（直接下載）</button>
   <button class="btn btn-share" onclick="openShare()">📋 文字版（貼入群聊）</button>
@@ -328,9 +353,18 @@ function phaseNames(g, ph) {
   }
   return ns;
 }
-function shortN(ns, maxLen=6) {
-  if (!ns.length) return '';
-  return ns.map(n => n.length > maxLen ? n.slice(0, maxLen-1) + '…' : n).join('·');
+// Returns array of row strings (1 row for ≤3 players, 2 rows for 4+)
+function shortN(ns) {
+  if (!ns.length) return [];
+  const trim = (n, c) => n.length > c ? n.slice(0, c-1)+'…' : n;
+  if (ns.length <= 3) {
+    return [ns.map(n => trim(n, 7)).join('·')];
+  }
+  const half = Math.ceil(ns.length / 2);
+  return [
+    ns.slice(0, half).map(n => trim(n, 5)).join('·'),
+    ns.slice(half).map(n => trim(n, 5)).join('·')
+  ];
 }
 
 // ─── SVG helpers ────────────────────────────────────────────
@@ -344,31 +378,38 @@ function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-// ─── Draw a standard marker ──────────────────────────────────
-function makeMarker(posKey, role, line1, line2, playerStr, r, ox, oy) {
+// ─── Draw a standard marker (rectangle, multi-row names) ─────
+const BOX_W = 112;  // marker box width
+function makeMarker(posKey, role, line1, line2, pRows, r, ox, oy) {
   const p = getPos(posKey);
   if (!p) return '';
   const cx = p.x + (ox||0), cy = p.y + (oy||0);
   const clr = ROLE_CLR[role] || '#6e7681';
   const bg  = ROLE_BG[role]  || '#1c2128';
 
-  const hasP = playerStr && playerStr.length > 0;
-  const rows = 1 + (line2 ? 1 : 0) + (hasP ? 1 : 0);
-  const lh = 15;
-  const startY = cy - (rows - 1) * lh / 2;
+  // pRows is an array of player-name row strings
+  const rows = Array.isArray(pRows) ? pRows : (pRows ? [pRows] : []);
+  const lh = 18;
+  const numLines = 1 + (line2 ? 1 : 0) + rows.length;
+  const boxH = numLines * lh + 14;
+  const bx = cx - BOX_W / 2, by = cy - boxH / 2;
 
-  let s = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${bg}" fill-opacity="0.95" stroke="${clr}" stroke-width="2.5"/>`;
-  const fs1 = line1.length > 5 ? 10 : 12;
-  s += svgTxt(cx, startY + 4, line1, fs1, clr, 700);
+  let s = `<rect x="${bx}" y="${by}" width="${BOX_W}" height="${boxH}" rx="8"
+    fill="${bg}" fill-opacity="0.97" stroke="${clr}" stroke-width="2.5"/>`;
+
+  let ty = by + 13;
+  s += svgTxt(cx, ty, line1, 13, clr, 700);
+  ty += lh;
   if (line2) {
-    const fs2 = line2.length > 8 ? 8 : (line2.length > 5 ? 9 : 10);
-    s += svgTxt(cx, startY + lh + 4, line2, fs2, '#dde4ed', 600);
+    const fs2 = line2.length > 10 ? 10 : 11;
+    s += svgTxt(cx, ty, line2, fs2, '#dde4ed', 600);
+    ty += lh;
   }
-  if (hasP) {
-    const py2 = startY + (line2 ? 2 : 1) * lh + 4;
-    const fsP = playerStr.length > 10 ? 8 : (playerStr.length > 7 ? 9 : 10);
-    s += svgTxt(cx, py2, playerStr, fsP, '#ffffff', 700);
-  }
+  rows.forEach(row => {
+    const fsP = row.length > 15 ? 9 : (row.length > 10 ? 10 : 11);
+    s += svgTxt(cx, ty, row, fsP, '#ffffff', 700);
+    ty += lh;
+  });
   return s;
 }
 
@@ -383,23 +424,24 @@ function makeSplitMarker(posKey, r) {
   const euc = getGroup('g_euc');
   const p0  = (euc && euc.players[0] && euc.players[0].trim()) ? euc.players[0].trim() : '?';
   const p1  = (euc && euc.players[1] && euc.players[1].trim()) ? euc.players[1].trim() : '?';
-  const p0s = p0.length > 5 ? p0.slice(0,4)+'…' : p0;
-  const p1s = p1.length > 5 ? p1.slice(0,4)+'…' : p1;
+  const p0s = p0.length > 7 ? p0.slice(0,6)+'…' : p0;
+  const p1s = p1.length > 7 ? p1.slice(0,6)+'…' : p1;
 
-  const bigR = Math.max(r, 40);
-  let s = `<circle cx="${cx}" cy="${cy}" r="${bigR}" fill="${bg}" fill-opacity="0.95" stroke="${clr}" stroke-width="2.5"/>`;
-  s += svgTxt(cx, cy - 18, '分配', 11, clr, 700);
-  s += svgTxt(cx, cy - 2,  p0s + '→炸A', 9, '#fb923c', 700);
-  s += svgTxt(cx, cy + 14, p1s + '→炸B', 9, '#fb923c', 700);
+  const bw = 126, bh = 68;
+  let s = `<rect x="${cx - bw/2}" y="${cy - bh/2}" width="${bw}" height="${bh}" rx="8"
+    fill="${bg}" fill-opacity="0.97" stroke="${clr}" stroke-width="2.5"/>`;
+  s += svgTxt(cx, cy - 16, '分配', 13, clr, 700);
+  s += svgTxt(cx, cy + 2,  p0s + '→炸A', 12, '#fb923c', 700);
+  s += svgTxt(cx, cy + 20, p1s + '→炸B', 12, '#fb923c', 700);
   return s;
 }
 
 // ─── Base corner labels ───────────────────────────────────────
 function baseLabel(cx, cy, label, clr) {
   const lines = label.split('|');
-  return `<rect x="${cx-32}" y="${cy-30}" width="64" height="58" rx="9"
-    fill="${clr}18" stroke="${clr}" stroke-width="1.5" stroke-dasharray="5,3"/>
-    ${lines.map((l,i)=>svgTxt(cx, cy-6+i*20, l, 11, clr, 700)).join('')}`;
+  return `<rect x="${cx-36}" y="${cy-36}" width="72" height="70" rx="9"
+    fill="${clr}22" stroke="${clr}" stroke-width="2" stroke-dasharray="5,3"/>
+    ${lines.map((l,i)=>svgTxt(cx, cy-6+i*24, l, 14, clr, 700)).join('')}`;
 }
 
 // ─── RENDER MAP ──────────────────────────────────────────────
@@ -428,7 +470,7 @@ function renderMap() {
       h += makeMarker(posKey, pd.role, l1, l2, shortN(ns), r, 0, 0);
     } else {
       items.forEach(({g, pd}, i) => {
-        const offset = (i - (items.length - 1) / 2) * 70;
+        const offset = (i - (items.length - 1) / 2) * (BOX_W + 14);
         const [l1, l2] = pd.text.split('|');
         const ns = phaseNames(g, phase);
         h += makeMarker(posKey, pd.role, l1, l2, shortN(ns), r, offset, 0);
@@ -546,6 +588,7 @@ function upd(gid, idx, val) {
   while (g.players.length <= idx) g.players.push('');
   g.players[idx] = val;
   renderMap(); renderInfo();
+  if (IS_COMMANDER) saveToFirebase();
 }
 
 // ─── PHASE & BASE ────────────────────────────────────────────
@@ -824,6 +867,74 @@ function generateMemberHtml() {
   URL.revokeObjectURL(url);
 }
 
+
+
+// ─── FIREBASE REAL-TIME SYNC ─────────────────────────────────
+var _fbCfg = {
+  apiKey: "AIzaSyDq56HsE64ieu15qjVkBuPDVw-DWLeL87I",
+  authDomain: "bikongjin-30f88.firebaseapp.com",
+  databaseURL: "https://bikongjin-30f88-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "bikongjin-30f88",
+  storageBucket: "bikongjin-30f88.firebasestorage.app",
+  messagingSenderId: "937243849978",
+  appId: "1:937243849978:web:7b07fe0d8615c960620543"
+};
+firebase.initializeApp(_fbCfg);
+var _db    = firebase.database();
+var _dbRef = _db.ref('baiye/players');
+
+var IS_COMMANDER = false;
+var CMD_PASSWORD = 'wenjunyudashuaige';  // 指揮密碼，可自行修改
+var _fbSaving = false;
+
+function tryLogin() {
+  var val = document.getElementById('pwdInp').value;
+  if (val === CMD_PASSWORD) {
+    IS_COMMANDER = true;
+    document.getElementById('pwdOverlay').style.display = 'none';
+    document.getElementById('assignSect').style.display = '';
+    document.getElementById('actionsSect').style.display = '';
+    var b = document.createElement('div');
+    b.style.cssText = 'background:#0d2018;border:1px solid #3fb950;border-radius:9px;'
+      + 'padding:9px 14px;margin-bottom:10px;color:#3fb950;'
+      + 'font-size:.88rem;font-weight:700;text-align:center;';
+    b.textContent = '🔐 指揮模式 · 名單變更即時同步給所有成員';
+    var hdr = document.querySelector('.hdr');
+    if (hdr) hdr.parentNode.insertBefore(b, hdr.nextSibling);
+  } else {
+    document.getElementById('pwdErr').style.display = 'block';
+    document.getElementById('pwdInp').value = '';
+  }
+}
+
+function memberLogin() {
+  document.getElementById('pwdOverlay').style.display = 'none';
+  var b = document.createElement('div');
+  b.style.cssText = 'background:#0d1f35;border:1px solid #1f6feb;border-radius:9px;'
+    + 'padding:9px 14px;margin-bottom:10px;color:#60a5fa;'
+    + 'font-size:.88rem;font-weight:700;text-align:center;';
+  b.textContent = '👁 成員版 · 唯讀 — 可自由切換時段和基地方向，名單由指揮即時更新';
+  var hdr = document.querySelector('.hdr');
+  if (hdr) hdr.parentNode.insertBefore(b, hdr.nextSibling);
+}
+
+function saveToFirebase() {
+  var pd = {};
+  GROUPS.forEach(function(g) { pd[g.id] = g.players.slice(); });
+  _fbSaving = true;
+  _dbRef.set(pd);
+}
+
+// Real-time listener — fires on connect and whenever data changes
+_dbRef.on('value', function(snap) {
+  if (_fbSaving) { _fbSaving = false; return; }
+  var data = snap.val();
+  if (!data) return;
+  GROUPS.forEach(function(g) { if (data[g.id]) g.players = data[g.id]; });
+  if (!IS_COMMANDER) renderAssignment();
+  renderMap();
+  renderInfo();
+});
 
 // ── Init ──
 renderAssignment(); renderMap(); renderInfo();
