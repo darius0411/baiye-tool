@@ -27,6 +27,7 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;
 .tab{flex:1;padding:10px 6px;border-radius:10px;border:2px solid #30363d;
   cursor:pointer;font-family:inherit;font-size:.88rem;font-weight:700;
   background:#161b22;color:#8b949e;text-align:center;transition:all .2s;line-height:1.5;}
+.tab.kai.active{border-color:#8b5cf6;background:#150a2e;color:#a78bfa;}
 .tab.nd.active{border-color:#3fb950;background:#0d2018;color:#3fb950;}
 .tab.d25.active{border-color:#f97316;background:#1c0f00;color:#f97316;}
 .tab.d15.active{border-color:#ef4444;background:#1c0000;color:#ef4444;}
@@ -120,6 +121,36 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;
 .sph li{font-size:.8rem;color:#8b949e;padding:3px 0 3px 14px;position:relative;line-height:1.55;}
 .sph li::before{content:'▸';position:absolute;left:0;color:#484f58;}
 .sph li strong{color:#c9d1d9;}
+
+/* ── Player roster UI ─────────────────────────────────────── */
+.paste-box{display:flex;gap:8px;margin-bottom:10px;}
+.paste-ta{flex:1;background:#0d1117;border:1.5px solid #30363d;border-radius:8px;color:#e6edf3;
+  padding:10px 12px;font-size:.85rem;font-family:inherit;resize:vertical;min-height:72px;}
+.paste-ta:focus{outline:none;border-color:#1f6feb;}
+.paste-btn{padding:10px 18px;background:#238636;color:#fff;border:none;border-radius:8px;
+  cursor:pointer;font-weight:700;font-size:.88rem;white-space:nowrap;align-self:flex-start;}
+.paste-btn:hover{background:#2ea043;}
+.player-grid{display:flex;flex-direction:column;gap:5px;margin-bottom:4px;}
+.pcard{background:#161b22;border:1px solid #30363d;border-radius:10px;
+  padding:8px 12px;display:flex;align-items:center;gap:10px;transition:border-color .15s;}
+.pcard:hover{border-color:#484f58;}
+.pname-lbl{color:#e6edf3;font-weight:700;font-size:.9rem;width:90px;flex-shrink:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.role-btns{display:flex;flex-wrap:wrap;gap:4px;flex:1;}
+.rbtn{padding:3px 9px;border-radius:6px;border:1.5px solid #30363d;background:#0d1117;
+  color:#8b949e;font-size:.75rem;cursor:pointer;transition:all .15s;}
+.rbtn:hover{border-color:#484f58;color:#e6edf3;}
+.rbtn.rj{border-color:#1d4ed8;} .rbtn.rj.ron{background:#0d1f42;color:#3b82f6;border-color:#3b82f6;font-weight:700;}
+.rbtn.rt{border-color:#166534;} .rbtn.rt.ron{background:#0d2018;color:#3fb950;border-color:#3fb950;font-weight:700;}
+.rbtn.rz{border-color:#9a3412;} .rbtn.rz.ron{background:#2d1500;color:#f97316;border-color:#f97316;font-weight:700;}
+.rbtn.rd{border-color:#6b21a8;} .rbtn.rd.ron{background:#1d0840;color:#a855f7;border-color:#a855f7;font-weight:700;}
+.pdel{background:none;border:none;color:#484f58;cursor:pointer;font-size:.95rem;
+  padding:2px 6px;border-radius:4px;flex-shrink:0;}
+.pdel:hover{color:#ef4444;}
+.sec-hdr{font-size:.95rem;font-weight:700;color:#e6edf3;margin:14px 0 8px;
+  display:flex;align-items:center;gap:8px;}
+.sec-hdr small{font-size:.75rem;color:#8b949e;font-weight:400;}
+.empty-hint{color:#8b949e;font-size:.82rem;padding:6px 2px;}
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
@@ -151,7 +182,7 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;
 
 <div class="hdr">
   <h1>⚔️ 碧空盡 · 百業戰 戰術指揮工具</h1>
-  <div class="sub">30人 = 10防守隊 + 20進攻（12輸出 + 5奶媽 + 3陌刀）｜勝利：把對方的樹抬回家</div>
+  <div class="sub">30人 = 先鋒隊20人（先鋒1小隊+先鋒2小隊）+ 防守隊10人｜勝利：把對方的樹抬回家</div>
 </div>
 
 <div class="base-bar">
@@ -161,6 +192,7 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;
 </div>
 
 <div class="tabs">
+  <button class="tab kai" onclick="setPhase('kai')">🚀 開局<br><small>入侵+推塔</small></button>
   <button class="tab nd active" onclick="setPhase('nd')">🌿 無龍時段<br><small>5 / 10 / 20 分</small></button>
   <button class="tab d25" onclick="setPhase('d25')">🐉 25分大龍<br><small>獎逗幣</small></button>
   <button class="tab d15" onclick="setPhase('d15')">⚡ 15分大龍<br><small>最重要！有Buff</small></button>
@@ -175,12 +207,12 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;
       </svg>
     </div>
     <div class="map-leg">
-      <div class="leg-i"><div class="leg-dot" style="background:#3b82f6"></div>打野</div>
+      <div class="leg-i"><div class="leg-dot" style="background:#3b82f6"></div>先鋒/打野</div>
       <div class="leg-i"><div class="leg-dot" style="background:#f97316"></div>炸雞隊</div>
       <div class="leg-i"><div class="leg-dot" style="background:#ef4444"></div>搶龍主力</div>
       <div class="leg-i"><div class="leg-dot" style="background:#3fb950"></div>抬樹</div>
-      <div class="leg-i"><div class="leg-dot" style="background:#6e7681"></div>防守隊</div>
-      <div class="leg-i"><div class="leg-dot" style="background:#a78bfa"></div>分配入炸雞</div>
+      <div class="leg-i"><div class="leg-dot" style="background:#22d3ee"></div>掩護/橋下</div>
+      <div class="leg-i"><div class="leg-dot" style="background:#a855f7"></div>防守隊</div>
     </div>
   </div>
 
@@ -189,13 +221,19 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;
 
 <!-- Assignment -->
 <div class="assign-sect" id="assignSect" style="display:none">
-  <div class="assign-title">
-    👥 本場人員名單
-    <span style="font-size:.75rem;color:#8b949e;font-weight:400;margin-left:6px;">
-      ⭐=靈活組 &nbsp; 🟣=15分分配進炸雞
-    </span>
+  <div class="assign-title">👥 本場人員名單</div>
+  <div class="sec-hdr">⚔️ 先鋒隊 <span>貼入名字（每行一人），再點選各人職責</span></div>
+  <div class="paste-box">
+    <textarea class="paste-ta" id="vanTa" placeholder="貼入先鋒隊名單，每行一個名字…"></textarea>
+    <button class="paste-btn" onclick="importVanguard()">匯入 ▶</button>
   </div>
-  <div class="assign-grid" id="assignGrid"></div>
+  <div class="player-grid" id="vanGrid"><div class="empty-hint">尚未匯入名單</div></div>
+  <div class="sec-hdr">🛡️ 防守隊 <span>貼入名字，再點選各人駐守灘口</span></div>
+  <div class="paste-box">
+    <textarea class="paste-ta" id="defTa" placeholder="貼入防守隊名單，每行一個名字…"></textarea>
+    <button class="paste-btn" onclick="importDefense()">匯入 ▶</button>
+  </div>
+  <div class="player-grid" id="defGrid"><div class="empty-hint">尚未匯入名單</div></div>
 </div>
 
 <div class="actions" id="actionsSect" style="display:none">
@@ -222,31 +260,39 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;
 <div class="strat">
   <div class="strat-title">📖 戰術要點</div>
   <div class="sph">
+    <h4 style="background:#150a2e;color:#a78bfa;">🚀 開局</h4>
+    <ul>
+      <li><strong>防守隊（10人）</strong>分四組清自家四灘，期間可用護城拖時間</li>
+      <li><strong>先鋒1小隊（10人）</strong>直接入侵敵方上路野區：上人墻者搶深處野怪，其餘搶靠中路的</li>
+      <li><strong>先鋒2小隊（10人）</strong>直接入侵敵方下路野區：同上策略</li>
+      <li>野怪打完後先鋒隊<strong>全20人集中攻打對方中路塔</strong>，配合百業技能秒塔</li>
+      <li>若對方開護城或中路塔倒：立即重新分為兩個10人小隊，分攻<strong>上下路塔</strong></li>
+    </ul>
+  </div>
+  <div class="sph">
     <h4 style="background:#0d2018;color:#3fb950;">🌿 無龍時段（5/10/20分）</h4>
     <ul>
-      <li><strong>12輸出</strong>分6組（每組2人）負責3個野區共6灘，打完立刻回去<strong>抬樹</strong></li>
-      <li><strong>5奶媽+3陌刀</strong>全員抬樹</li>
-      <li><strong>防守隊（10人）</strong>負責我方下野（2灘）＋基地防守</li>
+      <li><strong>防守隊（10人）</strong>負責自家野怪＋基地防守（清野優先於放技能）</li>
+      <li><strong>先鋒隊固定打野組（8人）</strong>負責敵方四灘（每灘2人）</li>
+      <li><strong>其餘12人</strong>繼續抬樹，包含炸雞A/B待命</li>
     </ul>
   </div>
   <div class="sph">
     <h4 style="background:#1c0f00;color:#f97316;">🐉 25分大龍（逗幣）</h4>
     <ul>
-      <li><strong>炸雞A（上路）</strong>：我方上野靠中路2人就位，守在上路龍刷新點旁</li>
-      <li><strong>炸雞B（下路）</strong>：從奶媽/陌刀隊抽2人就位，守在下路龍刷新點旁</li>
-      <li>剩餘<strong>10輸出</strong>繼續打野（5灘），<strong>6名奶媽/陌刀</strong>繼續抬樹</li>
-      <li>龍隨機刷在上或下：<strong>龍不在自己側就繼續回野，不追對面那條路</strong></li>
+      <li><strong>炸雞A（2人）</strong>：就位上路龍刷新點旁，龍不在上路→回野不追</li>
+      <li><strong>炸雞B（2人）</strong>：就位下路龍刷新點旁，龍不在下路→回野不追</li>
+      <li><strong>固定打野8人</strong>：繼續清敵方四灘（每灘2人）</li>
+      <li><strong>抬樹隊其餘8人</strong>：放下樹，全員集合搶龍</li>
+      <li><strong>防守隊</strong>：清完自家野就回守樹，每5分鐘重複一次</li>
     </ul>
   </div>
   <div class="sph">
     <h4 style="background:#1c0000;color:#ef4444;">⚡ 15分大龍（Buff！最重要）</h4>
     <ul>
-      <li><strong>炸雞A（3人）</strong>：25分原班2人 + 敵上近中1人補入（→炸A）</li>
-      <li><strong>炸雞B（3人）</strong>：25分原班2人 + 敵上近中1人補入（→炸B）</li>
-      <li><strong>繼續打野（3組6人）</strong>：敵方上野靠基地、敵方下野靠中路、敵方下野靠基地</li>
-      <li>「我方上野靠基地」組<strong>放棄打野</strong>，加入搶龍大部隊</li>
-      <li><strong>防守隊</strong>接管我方全部野區（4灘）</li>
-      <li>奶媽/陌刀全員<strong>放下樹去搶龍</strong></li>
+      <li><strong>炸雞A（3-4人）</strong>＋<strong>炸雞B（3-4人）</strong>：各自就位上下路龍刷新點</li>
+      <li><strong>防守隊</strong>繼續清野，清完守樹</li>
+      <li>核心原則：<strong>靠累積經濟滾雪球</strong>，讓對方技能開不起來，搬樹速度自然慢下來</li>
     </ul>
   </div>
 </div>
@@ -257,76 +303,80 @@ const MW = 1484, MH = 725;
 const BASE_POS = {
   our_up_base:   {x:0.30, y:0.30, r:32},
   our_up_center: {x:0.42, y:0.30, r:32},
+  our_lo_center: {x:0.42, y:0.70, r:32},
+  our_lo_base:   {x:0.30, y:0.70, r:32},
   our_lo_def:    {x:0.36, y:0.70, r:36},
   ene_up_center: {x:0.58, y:0.30, r:32},
   ene_up_base:   {x:0.70, y:0.30, r:32},
   ene_lo_center: {x:0.58, y:0.70, r:32},
   ene_lo_base:   {x:0.70, y:0.70, r:32},
-  zhaji_a_rally: {x:0.44, y:0.27, r:34},
-  zhaji_b_rally: {x:0.44, y:0.73, r:34},
+  zhaji_a_rally: {x:0.50, y:0.22, r:34},
+  zhaji_b_rally: {x:0.50, y:0.78, r:34},
   tree_area:     {x:0.82, y:0.50, r:32},
   dragon_team:   {x:0.50, y:0.50, r:38},
 };
 
-// GROUPS
-// g_euc at d15: role='split15' — drawn separately showing exactly who goes to 炸A and 炸B
-// g_za at d15 / g_zb at d15: extraFrom g_euc idx 0/1 so phaseNames includes that player
-const GROUPS = [
-  {id:'g_za', label:'炸雞A組 ⭐', sub:'我方上野靠中路', flex:true, pcount:2, players:['',''],
-   nd: {role:'jungle', text:'打野|我方上野靠中路', posKey:'our_up_center'},
-   d25:{role:'zhaji',  text:'炸雞A|上路就位', posKey:'zhaji_a_rally', note:'龍不在上路→回原野區'},
-   d15:{role:'zhaji',  text:'炸雞A|3人', posKey:'zhaji_a_rally', note:'含敵上近中1人', extraFrom:'g_euc', extraIdx:0}},
+// ── Player-centric data model ─────────────────────────────────
+const ROLE_DEFS = {
+  '打野_euc':{label:'打野・敵上靠中', cls:'rj', phase:{kai:null, nd:'ene_up_center', d25:'ene_up_center', d15:'ene_up_center'}},
+  '打野_eub':{label:'打野・敵上靠基', cls:'rj', phase:{kai:null, nd:'ene_up_base',   d25:'ene_up_base',   d15:'ene_up_base'}},
+  '打野_elc':{label:'打野・敵下靠中', cls:'rj', phase:{kai:null, nd:'ene_lo_center', d25:'ene_lo_center', d15:'ene_lo_center'}},
+  '打野_elb':{label:'打野・敵下靠基', cls:'rj', phase:{kai:null, nd:'ene_lo_base',   d25:'ene_lo_base',   d15:'ene_lo_base'}},
+  'tree':    {label:'抬樹',           cls:'rt', phase:{kai:null, nd:'tree_area',     d25:'dragon_team',   d15:'dragon_team'}},
+  'za25':    {label:'25分炸雞A',      cls:'rz', phase:{kai:null, nd:'tree_area',     d25:'zhaji_a_rally', d15:'dragon_team'}},
+  'zb25':    {label:'25分炸雞B',      cls:'rz', phase:{kai:null, nd:'tree_area',     d25:'zhaji_b_rally', d15:'dragon_team'}},
+  'za15':    {label:'15分炸雞A',      cls:'rz', phase:{kai:null, nd:'tree_area',     d25:'dragon_team',   d15:'zhaji_a_rally'}},
+  'zb15':    {label:'15分炸雞B',      cls:'rz', phase:{kai:null, nd:'tree_area',     d25:'dragon_team',   d15:'zhaji_b_rally'}},
+  'za_all':  {label:'炸雞A（兩龍）',  cls:'rz', phase:{kai:null, nd:'tree_area',     d25:'zhaji_a_rally', d15:'zhaji_a_rally'}},
+  'zb_all':  {label:'炸雞B（兩龍）',  cls:'rz', phase:{kai:null, nd:'tree_area',     d25:'zhaji_b_rally', d15:'zhaji_b_rally'}},
+};
+const DEF_POS_DEFS = {
+  'our_up_base':  {label:'上路基地', cls:'rd'},
+  'our_up_center':{label:'上路靠中', cls:'rd'},
+  'our_lo_center':{label:'下路靠中', cls:'rd'},
+  'our_lo_base':  {label:'下路基地', cls:'rd'},
+};
+const POS_META = {
+  'ene_up_center':{line1:'打野', line2:'敵方上野靠中路', color:'jungle'},
+  'ene_up_base':  {line1:'打野', line2:'敵方上野靠基地', color:'jungle'},
+  'ene_lo_center':{line1:'打野', line2:'敵方下野靠中路', color:'jungle'},
+  'ene_lo_base':  {line1:'打野', line2:'敵方下野靠基地', color:'jungle'},
+  'tree_area':    {line1:'抬樹', line2:'全員抬樹',        color:'tree'},
+  'dragon_team':  {line1:'搶龍', line2:'全員出動！',      color:'dragon'},
+  'zhaji_a_rally':{line1:'炸雞A',line2:'上路集結',       color:'zhaji'},
+  'zhaji_b_rally':{line1:'炸雞B',line2:'下路集結',       color:'zhaji'},
+  'our_up_base':  {line1:'防守隊',line2:'自家上路基地',  color:'def'},
+  'our_up_center':{line1:'防守隊',line2:'自家上路靠中',  color:'def'},
+  'our_lo_center':{line1:'防守隊',line2:'自家下路靠中',  color:'def'},
+  'our_lo_base':  {line1:'防守隊',line2:'自家下路基地',  color:'def'},
+};
 
-  {id:'g_zb', label:'炸雞B組 ⭐', sub:'從奶媽/陌刀隊抽出', flex:true, pcount:2, players:['',''],
-   nd: {role:'tree',   text:'抬樹|奶媽/陌刀', posKey:'tree_area'},
-   d25:{role:'zhaji',  text:'炸雞B|下路就位', posKey:'zhaji_b_rally', note:'龍不在下路→回原野區'},
-   d15:{role:'zhaji',  text:'炸雞B|3人', posKey:'zhaji_b_rally', note:'含敵上近中1人', extraFrom:'g_euc', extraIdx:1}},
+let VANGUARD = []; // [{name:'', role:'tree'}]
+let DEFENSE  = []; // [{name:'', pos:'our_up_base'}]
 
-  // 敵上近中：nd/d25打野，d15分配進炸A炸B（地圖上顯示明確分配）
-  {id:'g_euc', label:'敵上近中組', sub:'敵方上野靠中路 ｜ 15分分配入炸雞', flex:false, pcount:2, players:['',''],
-   nd: {role:'jungle', text:'打野|敵方上野靠中路', posKey:'ene_up_center'},
-   d25:{role:'jungle', text:'打野|敵方上野靠中路', posKey:'ene_up_center'},
-   d15:{role:'split15',text:'分配|→炸A / →炸B', posKey:'ene_up_center'}},
 
-  // Fixed
-  {id:'g_oub', label:'我方上野靠基地', sub:'固定打野', flex:false, pcount:2, players:['',''],
-   nd: {role:'jungle', text:'打野|我方上野靠基地', posKey:'our_up_base'},
-   d25:{role:'jungle', text:'打野|我方上野靠基地', posKey:'our_up_base'},
-   d15:{role:'dragon', text:'搶龍|放棄打野', posKey:'dragon_team', note:'加入搶龍大部隊'}},
-
-  {id:'g_eub', label:'敵方上野靠基地', sub:'固定打野（15分不動）', flex:false, pcount:2, players:['',''],
-   nd: {role:'jungle', text:'打野|敵方上野靠基地', posKey:'ene_up_base'},
-   d25:{role:'jungle', text:'打野|敵方上野靠基地', posKey:'ene_up_base'},
-   d15:{role:'jungle', text:'打野|繼續不動', posKey:'ene_up_base'}},
-
-  {id:'g_elc', label:'敵方下野靠中路', sub:'固定打野（15分不動）', flex:false, pcount:2, players:['',''],
-   nd: {role:'jungle', text:'打野|敵方下野靠中路', posKey:'ene_lo_center'},
-   d25:{role:'jungle', text:'打野|敵方下野靠中路', posKey:'ene_lo_center'},
-   d15:{role:'jungle', text:'打野|繼續不動', posKey:'ene_lo_center'}},
-
-  {id:'g_elb', label:'敵方下野靠基地', sub:'固定打野（15分不動）', flex:false, pcount:2, players:['',''],
-   nd: {role:'jungle', text:'打野|敵方下野靠基地', posKey:'ene_lo_base'},
-   d25:{role:'jungle', text:'打野|敵方下野靠基地', posKey:'ene_lo_base'},
-   d15:{role:'jungle', text:'打野|繼續不動', posKey:'ene_lo_base'}},
-
-  {id:'g_sup', label:'奶媽/陌刀主隊', sub:'8人扣掉炸B2人 = 剩6人', flex:false, pcount:6, players:['','','','','',''],
-   nd: {role:'tree',   text:'抬樹|奶媽/陌刀6人', posKey:'tree_area'},
-   d25:{role:'tree',   text:'抬樹|奶媽/陌刀6人', posKey:'tree_area'},
-   d15:{role:'dragon', text:'搶龍|全員放下樹！', posKey:'dragon_team'}},
-
-  {id:'g_def', label:'防守隊', sub:'10人 固定防守', flex:false, pcount:0, players:[],
-   nd: {role:'def',    text:'防守|我方下野+基地', posKey:'our_lo_def'},
-   d25:{role:'def',    text:'防守|我方下野+基地', posKey:'our_lo_def'},
-   d15:{role:'def',    text:'防守|接管我方全野', posKey:'our_lo_def', note:'含我方上野兩灘'}},
-];
-
-const ROLE_CLR  = {jungle:'#3b82f6', zhaji:'#f97316', dragon:'#ef4444', tree:'#3fb950', def:'#6e7681', split15:'#a78bfa'};
-const ROLE_BG   = {jungle:'#0d1f42', zhaji:'#2d1500', dragon:'#2d0000', tree:'#0d2018', def:'#1c2128', split15:'#1d1040'};
-const ROLE_NAME = {jungle:'打野', zhaji:'炸雞', dragon:'搶龍', tree:'抬樹', def:'防守', split15:'分配'};
-const ROLE_EMOJI= {jungle:'🔵', zhaji:'🟠', dragon:'🔴', tree:'🟢', def:'⚫', split15:'🟣'};
+const ROLE_CLR  = {jungle:'#3b82f6', zhaji:'#f97316', dragon:'#ef4444', tree:'#3fb950', def:'#a855f7', guard:'#22d3ee'};
+const ROLE_BG   = {jungle:'#0d1f42', zhaji:'#2d1500', dragon:'#2d0000', tree:'#0d2018', def:'#1d0840', guard:'#0a2730'};
+const ROLE_NAME = {jungle:'打野', zhaji:'炸雞', dragon:'搶龍', tree:'抬樹', def:'防守', guard:'掩護'};
+const ROLE_EMOJI= {jungle:'🔵', zhaji:'🟠', dragon:'🔴', tree:'🟢', def:'⚫', guard:'🩵'};
 
 let phase = 'nd';
 let baseR = false;
+
+function setPhase(p) {
+  phase = p;
+  document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+  var active = document.querySelector('.tab.' + p);
+  if (active) active.classList.add('active');
+  renderMap(); renderInfo();
+}
+
+function setBase(dir) {
+  baseR = (dir === 'R');
+  document.getElementById('btnL').className = 'base-btn' + (baseR ? '' : ' active-L');
+  document.getElementById('btnR').className = 'base-btn' + (baseR ? ' active-R' : '');
+  renderMap(); renderInfo();
+}
 
 function px(pos) {
   const x = baseR ? 1.0 - pos.x : pos.x;
@@ -335,47 +385,13 @@ function px(pos) {
 function getPos(posKey) {
   return BASE_POS[posKey] ? px(BASE_POS[posKey]) : null;
 }
-function getGroup(gid) { return GROUPS.find(g => g.id === gid); }
-function rawNames(gid) {
-  const g = getGroup(gid);
-  return g ? g.players.filter(p => p.trim() !== '') : [];
-}
-// Names for a group at a phase (adds extra player from another group if configured)
-function phaseNames(g, ph) {
-  let ns = g.players.filter(p => p.trim() !== '');
-  const pd = g[ph];
-  if (pd && pd.extraFrom) {
-    const eg = getGroup(pd.extraFrom);
-    if (eg) {
-      const extra = eg.players[pd.extraIdx];
-      if (extra && extra.trim()) ns = [...ns, extra.trim()];
-    }
-  }
-  return ns;
-}
-// Returns array of row strings (1 row for ≤3 players, 2 rows for 4+)
-function shortN(ns) {
-  if (!ns.length) return [];
-  const trim = (n, c) => n.length > c ? n.slice(0, c-1)+'…' : n;
-  if (ns.length <= 3) {
-    return [ns.map(n => trim(n, 7)).join('·')];
-  }
-  const half = Math.ceil(ns.length / 2);
-  return [
-    ns.slice(0, half).map(n => trim(n, 5)).join('·'),
-    ns.slice(half).map(n => trim(n, 5)).join('·')
-  ];
-}
 
-// ─── SVG helpers ────────────────────────────────────────────
-function svgTxt(x, y, txt, fs, fill, weight) {
-  return `<text x="${x}" y="${y}" text-anchor="middle"
-    font-size="${fs}" font-weight="${weight || 700}"
-    stroke="rgba(0,0,0,0.9)" stroke-width="3.5" stroke-linejoin="round" paint-order="stroke fill"
-    fill="${fill}">${esc(txt)}</text>`;
-}
-function esc(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+// ─── SVG text helper ─────────────────────────────────────────
+function svgTxt(x, y, txt, fs, fill, fw) {
+  return `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="auto"
+    font-size="${fs}" fill="${fill}" font-weight="${fw}"
+    style="paint-order:stroke fill;stroke:#0d1117;stroke-width:3px;stroke-linejoin:round"
+    font-family="'Noto Sans TC',sans-serif">${txt}</text>`;
 }
 
 // ─── Draw a standard marker (rectangle, multi-row names) ─────
@@ -413,28 +429,8 @@ function makeMarker(posKey, role, line1, line2, pRows, r, ox, oy) {
   return s;
 }
 
-// ─── Special split15 marker for g_euc ───────────────────────
-// Shows: line1=分配, line2=player0→炸A, line3=player1→炸B
-function makeSplitMarker(posKey, r) {
-  const p = getPos(posKey);
-  if (!p) return '';
-  const cx = p.x, cy = p.y;
-  const clr = '#a78bfa';
-  const bg  = '#1d1040';
-  const euc = getGroup('g_euc');
-  const p0  = (euc && euc.players[0] && euc.players[0].trim()) ? euc.players[0].trim() : '?';
-  const p1  = (euc && euc.players[1] && euc.players[1].trim()) ? euc.players[1].trim() : '?';
-  const p0s = p0.length > 7 ? p0.slice(0,6)+'…' : p0;
-  const p1s = p1.length > 7 ? p1.slice(0,6)+'…' : p1;
-
-  const bw = 126, bh = 68;
-  let s = `<rect x="${cx - bw/2}" y="${cy - bh/2}" width="${bw}" height="${bh}" rx="8"
-    fill="${bg}" fill-opacity="0.97" stroke="${clr}" stroke-width="2.5"/>`;
-  s += svgTxt(cx, cy - 16, '分配', 13, clr, 700);
-  s += svgTxt(cx, cy + 2,  p0s + '→炸A', 12, '#fb923c', 700);
-  s += svgTxt(cx, cy + 20, p1s + '→炸B', 12, '#fb923c', 700);
-  return s;
-}
+// makeSplitMarker removed (no longer used in player-centric model)
+function makeSplitMarker() { return ''; }
 
 // ─── Base corner labels ───────────────────────────────────────
 function baseLabel(cx, cy, label, clr) {
@@ -444,166 +440,203 @@ function baseLabel(cx, cy, label, clr) {
     ${lines.map((l,i)=>svgTxt(cx, cy-6+i*24, l, 14, clr, 700)).join('')}`;
 }
 
+// ─── NAME DISPLAY HELPER ─────────────────────────────────────
+function shortN(ns) {
+  if (!ns || !ns.length) return [];
+  const trim = (n, c) => n.length > c ? n.slice(0, c-1)+'…' : n;
+  if (ns.length <= 3) return [ns.map(n => trim(n, 9)).join('·')];
+  const half = Math.ceil(ns.length / 2);
+  return [
+    ns.slice(0, half).map(n => trim(n, 5)).join('·'),
+    ns.slice(half).map(n => trim(n, 5)).join('·')
+  ];
+}
+
 // ─── RENDER MAP ──────────────────────────────────────────────
 function renderMap() {
   const svg = document.getElementById('markers');
   let h = '';
 
-  const byPos = new Map();
-  GROUPS.forEach(g => {
-    const pd = g[phase];
-    if (!pd || !pd.posKey) return;
-    if (pd.role === 'split15') return; // handled separately below
-    if (!byPos.has(pd.posKey)) byPos.set(pd.posKey, []);
-    byPos.get(pd.posKey).push({g, pd});
-  });
-
-  byPos.forEach((items, posKey) => {
-    const baseP = BASE_POS[posKey];
-    if (!baseP) return;
-    const r = baseP.r || 32;
-
-    if (items.length === 1) {
-      const {g, pd} = items[0];
-      const [l1, l2] = pd.text.split('|');
-      const ns = phaseNames(g, phase);
-      h += makeMarker(posKey, pd.role, l1, l2, shortN(ns), r, 0, 0);
-    } else {
-      items.forEach(({g, pd}, i) => {
-        const offset = (i - (items.length - 1) / 2) * (BOX_W + 14);
-        const [l1, l2] = pd.text.split('|');
-        const ns = phaseNames(g, phase);
-        h += makeMarker(posKey, pd.role, l1, l2, shortN(ns), r, offset, 0);
-      });
-    }
-  });
-
-  // Draw split15 marker if phase = d15
-  if (phase === 'd15') {
-    const eucPd = getGroup('g_euc')['d15'];
-    if (eucPd && eucPd.posKey) {
-      h += makeSplitMarker(eucPd.posKey, BASE_POS[eucPd.posKey].r || 32);
-    }
+  if (phase === 'kai') {
+    // Kai phase: show 先鋒隊1 / 先鋒隊2 as static markers
+    h += makeMarker('ene_up_center', 'jungle', '先鋒隊1', '入侵上路', [], 0, 0, 0);
+    h += makeMarker('ene_lo_center', 'jungle', '先鋒隊2', '入侵下路', [], 0, 0, 0);
+  } else {
+    // Group VANGUARD by position for current phase
+    const posMap = {};
+    VANGUARD.forEach(p => {
+      if (!p.name.trim()) return;
+      const rd = ROLE_DEFS[p.role]; if (!rd) return;
+      const posKey = rd.phase[phase]; if (!posKey) return;
+      if (!posMap[posKey]) posMap[posKey] = [];
+      posMap[posKey].push(p.name.trim());
+    });
+    // Render with horizontal offset when multiple groups share a position
+    const posEntries = Object.entries(posMap);
+    posEntries.forEach(([posKey, names]) => {
+      const meta = POS_META[posKey] || {line1: posKey, line2:'', color:'jungle'};
+      h += makeMarker(posKey, meta.color, meta.line1, meta.line2, shortN(names), 0, 0, 0);
+    });
   }
 
-  // Base labels — always LEFT=40, RIGHT=MW-40; just swap text/colour when mirrored
-  h += baseLabel(40,     MH/2, baseR ? '敵方|基地' : '我方|基地', baseR ? '#ef4444' : '#3b82f6');
-  h += baseLabel(MW-40,  MH/2, baseR ? '我方|基地' : '敵方|基地', baseR ? '#3b82f6' : '#ef4444');
+  // Defence — always visible in all phases
+  const defMap = {};
+  DEFENSE.forEach(p => {
+    if (!p.name.trim()) return;
+    if (!defMap[p.pos]) defMap[p.pos] = [];
+    defMap[p.pos].push(p.name.trim());
+  });
+  // Show all 4 defence positions (empty if no one assigned)
+  Object.keys(DEF_POS_DEFS).forEach(pos => {
+    const meta = POS_META[pos];
+    const names = defMap[pos] || [];
+    h += makeMarker(pos, meta.color, meta.line1, meta.line2, shortN(names), 0, 0, 0);
+  });
+
+  // Base labels
+  h += baseLabel(40,    MH/2, baseR ? '敵方|基地' : '我方|基地', baseR ? '#ef4444' : '#3b82f6');
+  h += baseLabel(MW-40, MH/2, baseR ? '我方|基地' : '敵方|基地', baseR ? '#3b82f6' : '#ef4444');
 
   svg.innerHTML = h;
 }
 
 // ─── RENDER INFO PANEL ───────────────────────────────────────
 const PHASE_DESC = {
-  nd:  {text:'所有輸出打野，奶媽陌刀全員抬樹，防守隊守我方下野。打完野立刻回去幫忙抬樹！', cls:'nd-b'},
-  d25: {text:'炸雞A/B就位等龍！其餘輸出繼續打野，奶媽/陌刀（6人）繼續抬樹。龍不在自己側就回原野區！', cls:'d25-b'},
-  d15: {text:'全員出動！炸雞A/B（各3人）就位，防守隊接管我方野區。敵方上野3組繼續打野，其餘搶龍！', cls:'d15-b'},
+  kai: {text:'先鋒隊20人全員入侵敵方野區！防守隊10人清自家四灘。', cls:'kai-b'},
+  nd:  {text:'先鋒隊打野8人守敵方四灘，抬樹12人全員抬樹。防守隊清自家四灘。', cls:'nd-b'},
+  d25: {text:'炸雞A/B就位！抬樹隊其餘8人放下樹搶龍。打野8人繼續守敵方四灘。防守隊清野守樹。', cls:'d25-b'},
+  d15: {text:'炸雞A/B（各3-4人）就位！抬樹隊其餘放下樹搶龍。打野8人繼續守敵方四灘。', cls:'d15-b'},
 };
-const PHASE_LABEL = {nd:'🌿 無龍時段', d25:'🐉 25分大龍', d15:'⚡ 15分大龍'};
-const ROLE_ORDER  = ['jungle','zhaji','split15','dragon','tree','def'];
-const SEC_TITLE   = {jungle:'🔵 打野組', zhaji:'🟠 炸雞隊', split15:'🟣 分配入炸雞', dragon:'🔴 搶龍主力', tree:'🟢 抬樹', def:'⚫ 防守隊'};
+const PHASE_LABEL = {kai:'🚀 開局', nd:'🌿 無龍時段', d25:'🐉 25分大龍', d15:'⚡ 15分大龍'};
 
 function renderInfo() {
-  const desc = PHASE_DESC[phase];
+  const desc = PHASE_DESC[phase] || {text:'', cls:''};
   let h = `<div class="info-title">${PHASE_LABEL[phase]}</div>
     <div class="phase-desc ${desc.cls}">${desc.text}</div>`;
 
-  const secs = {};
-  GROUPS.forEach(g => {
-    const pd = g[phase];
-    if (!pd) return;
-    if (!secs[pd.role]) secs[pd.role] = [];
-    secs[pd.role].push({g, pd});
-  });
-
-  ROLE_ORDER.forEach(role => {
-    if (!secs[role] || !secs[role].length) return;
-    const clr = ROLE_CLR[role];
-    h += `<div class="role-sec"><div class="role-sec-title">${SEC_TITLE[role]}</div>`;
-    secs[role].forEach(({g, pd}) => {
-      if (role === 'split15') {
-        // Special display for split group
-        const euc = getGroup('g_euc');
-        const n0 = (euc.players[0]||'').trim() || '（未填）';
-        const n1 = (euc.players[1]||'').trim() || '（未填）';
-        h += `<div class="role-row" style="border-color:${clr}">
-          <div class="role-main">${g.label}</div>
-          <div class="role-split-line" style="color:#fb923c">🟠 炸A ← ${n0}</div>
-          <div class="role-split-line" style="color:#fb923c">🟠 炸B ← ${n1}</div>
-        </div>`;
-      } else {
-        const ns = phaseNames(g, phase);
-        const nameStr = ns.length ? ns.join('、') : '（未填入）';
-        h += `<div class="role-row" style="border-color:${clr}">
-          <div class="role-main">${g.label}</div>
-          <div class="role-names">👥 ${nameStr}</div>
-          ${pd.note ? `<div class="role-note">⚠️ ${pd.note}</div>` : ''}
-        </div>`;
-      }
+  if (phase !== 'kai') {
+    // Build role summary from VANGUARD
+    const roleBuckets = {};
+    VANGUARD.forEach(p => {
+      const rd = ROLE_DEFS[p.role]; if (!rd) return;
+      const posKey = rd.phase[phase]; if (!posKey) return;
+      const meta = POS_META[posKey];
+      const key = posKey;
+      if (!roleBuckets[key]) roleBuckets[key] = {meta, names:[]};
+      if (p.name.trim()) roleBuckets[key].names.push(p.name.trim());
     });
-    h += '</div>';
-  });
-
+    Object.values(roleBuckets).forEach(({meta, names}) => {
+      const clr = ROLE_CLR[meta.color] || '#6e7681';
+      const nameStr = names.length ? names.join('、') : '（未填）';
+      h += `<div class="role-row" style="border-color:${clr}">
+        <div class="role-main">${meta.line1}｜${meta.line2}</div>
+        <div class="role-names">👥 ${nameStr}</div>
+      </div>`;
+    });
+    // Defence summary
+    const defBuckets = {};
+    DEFENSE.forEach(p => {
+      if (!defBuckets[p.pos]) defBuckets[p.pos] = [];
+      if (p.name.trim()) defBuckets[p.pos].push(p.name.trim());
+    });
+    Object.entries(DEF_POS_DEFS).forEach(([pos, pd]) => {
+      const names = defBuckets[pos] || [];
+      const nameStr = names.length ? names.join('、') : '（未填）';
+      h += `<div class="role-row" style="border-color:#a855f7">
+        <div class="role-main">防守隊｜${pd.label}</div>
+        <div class="role-names">👥 ${nameStr}</div>
+      </div>`;
+    });
+  }
   document.getElementById('infoPanel').innerHTML = h;
 }
 
-// ─── RENDER ASSIGNMENT GRID ──────────────────────────────────
+// ─── RENDER ASSIGNMENT (player-centric) ──────────────────────
 function renderAssignment() {
-  const grid = document.getElementById('assignGrid');
-  let h = '';
-  GROUPS.forEach(g => {
-    if (g.pcount === 0) return;
-    const isSplit = g.id === 'g_euc';
-    let inputs = '';
-    for (let i = 0; i < g.pcount; i++) {
-      let label;
-      if (g.id === 'g_sup') {
-        label = i < 5 ? `奶媽${i+1}` : `陌刀${i-4}`;
-      } else if (isSplit) {
-        label = i === 0 ? '→炸A' : '→炸B';
-      } else {
-        label = `玩家${i+1}`;
-      }
-      const val = (g.players[i] || '').replace(/"/g, '&quot;');
-      inputs += `<div class="name-row">
-        <span class="pnum">${label}</span>
-        <input class="name-inp" type="text" value="${val}"
-          oninput="upd('${g.id}',${i},this.value)" placeholder="輸入名字…">
-      </div>`;
-    }
-    const cardCls = g.flex ? 'acard flex' : (isSplit ? 'acard split15' : 'acard');
-    const labelPrefix = g.flex ? '⭐ ' : (isSplit ? '🟣 ' : '');
-    h += `<div class="${cardCls}">
-      <div class="alabel">${labelPrefix}${g.label}<br><span class="asub">${g.sub}</span></div>
-      <div class="name-inputs">${inputs}</div>
-    </div>`;
-  });
-  grid.innerHTML = h;
+  renderVanGrid();
+  renderDefGrid();
 }
 
-// ─── UPDATE PLAYER ───────────────────────────────────────────
-function upd(gid, idx, val) {
-  const g = getGroup(gid);
-  if (!g) return;
-  while (g.players.length <= idx) g.players.push('');
-  g.players[idx] = val;
-  renderMap(); renderInfo();
+function renderVanGrid() {
+  const g = document.getElementById('vanGrid'); if (!g) return;
+  if (!VANGUARD.length) { g.innerHTML = '<div class="empty-hint">尚未匯入名單</div>'; return; }
+  const roleKeys = Object.keys(ROLE_DEFS);
+  g.innerHTML = VANGUARD.map((p, i) => {
+    const btns = roleKeys.map(k => {
+      const rd = ROLE_DEFS[k];
+      const on = p.role === k ? ' ron' : '';
+      return `<button class="rbtn ${rd.cls}${on}" onclick="setRole(${i},'${k}')">${rd.label}</button>`;
+    }).join('');
+    return `<div class="pcard">
+      <div class="pname-lbl" title="${p.name}">${p.name}</div>
+      <div class="role-btns">${btns}</div>
+      <button class="pdel" onclick="removeVan(${i})" title="移除">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function renderDefGrid() {
+  const g = document.getElementById('defGrid'); if (!g) return;
+  if (!DEFENSE.length) { g.innerHTML = '<div class="empty-hint">尚未匯入名單</div>'; return; }
+  const posKeys = Object.keys(DEF_POS_DEFS);
+  g.innerHTML = DEFENSE.map((p, i) => {
+    const btns = posKeys.map(k => {
+      const pd = DEF_POS_DEFS[k];
+      const on = p.pos === k ? ' ron' : '';
+      return `<button class="rbtn ${pd.cls}${on}" onclick="setDefPos(${i},'${k}')">${pd.label}</button>`;
+    }).join('');
+    return `<div class="pcard">
+      <div class="pname-lbl" title="${p.name}">${p.name}</div>
+      <div class="role-btns">${btns}</div>
+      <button class="pdel" onclick="removeDef(${i})" title="移除">✕</button>
+    </div>`;
+  }).join('');
+}
+
+// ─── IMPORT ──────────────────────────────────────────────────
+function importVanguard() {
+  const ta = document.getElementById('vanTa');
+  const names = ta.value.split('\n').map(n => n.trim()).filter(n => n);
+  names.forEach(name => {
+    if (!VANGUARD.find(p => p.name === name)) VANGUARD.push({name, role:'tree'});
+  });
+  ta.value = '';
+  renderVanGrid(); renderMap(); renderInfo();
+  if (IS_COMMANDER) saveToFirebase();
+}
+function importDefense() {
+  const ta = document.getElementById('defTa');
+  const names = ta.value.split('\n').map(n => n.trim()).filter(n => n);
+  names.forEach(name => {
+    if (!DEFENSE.find(p => p.name === name)) DEFENSE.push({name, pos:'our_up_base'});
+  });
+  ta.value = '';
+  renderDefGrid(); renderMap(); renderInfo();
   if (IS_COMMANDER) saveToFirebase();
 }
 
-// ─── PHASE & BASE ────────────────────────────────────────────
-function setPhase(p) {
-  phase = p;
-  ['nd','d25','d15'].forEach((x,i) => {
-    document.querySelectorAll('.tab')[i].className = `tab ${x}${p===x?' active':''}`;
-  });
-  renderMap(); renderInfo();
+// ─── ROLE / POSITION SETTERS ─────────────────────────────────
+function setRole(i, role) {
+  if (!VANGUARD[i]) return;
+  VANGUARD[i].role = role;
+  renderVanGrid(); renderMap(); renderInfo();
+  if (IS_COMMANDER) saveToFirebase();
 }
-function setBase(b) {
-  baseR = (b === 'R');
-  document.getElementById('btnL').className = 'base-btn' + (baseR ? '' : ' active-L');
-  document.getElementById('btnR').className = 'base-btn' + (baseR ? ' active-R' : '');
-  renderMap(); renderInfo();
+function setDefPos(i, pos) {
+  if (!DEFENSE[i]) return;
+  DEFENSE[i].pos = pos;
+  renderDefGrid(); renderMap(); renderInfo();
+  if (IS_COMMANDER) saveToFirebase();
+}
+function removeVan(i) {
+  VANGUARD.splice(i, 1);
+  renderVanGrid(); renderMap(); renderInfo();
+  if (IS_COMMANDER) saveToFirebase();
+}
+function removeDef(i) {
+  DEFENSE.splice(i, 1);
+  renderDefGrid(); renderMap(); renderInfo();
+  if (IS_COMMANDER) saveToFirebase();
 }
 
 // ─── SHARE / OUTPUT ──────────────────────────────────────────
@@ -611,32 +644,40 @@ function buildShareText() {
   const side = baseR ? '右側 ➡️' : '左側 ⬅️';
   let t = `⚔️ 碧空盡 百業戰 本場分配\n🏯 基地方向：${side}\n`;
   t += '━'.repeat(24) + '\n';
-
   const phaseDefs = [
+    {k:'kai', l:'🚀 開局'},
     {k:'nd',  l:'🌿 無龍時段（5/10/20分）'},
     {k:'d25', l:'🐉 25分大龍（逗幣）'},
     {k:'d15', l:'⚡ 15分大龍（最重要！有Buff）'},
   ];
-
   phaseDefs.forEach(ph => {
     t += `\n${ph.l}\n`;
-    GROUPS.forEach(g => {
-      const pd = g[ph.k];
-      if (!pd) return;
-      const emoji = ROLE_EMOJI[pd.role] || '⚪';
-      const role  = ROLE_NAME[pd.role]  || pd.role;
-
-      if (pd.role === 'split15') {
-        const euc = getGroup('g_euc');
-        const n0 = (euc.players[0]||'').trim() || '（未填）';
-        const n1 = (euc.players[1]||'').trim() || '（未填）';
-        t += `${emoji} ${g.label}：${n0} → 炸A ／ ${n1} → 炸B\n`;
-      } else {
-        const ns = phaseNames(g, ph.k);
-        const nameStr = ns.length ? ns.join('、') : '（未填）';
-        t += `${emoji} ${role}｜${g.label}：${nameStr}\n`;
-        if (pd.note) t += `   ➤ ${pd.note}\n`;
-      }
+    if (ph.k === 'kai') {
+      t += `🔵 先鋒隊1：入侵敵方上路野區\n`;
+      t += `🔵 先鋒隊2：入侵敵方下路野區\n`;
+    } else {
+      const posMap = {};
+      VANGUARD.forEach(p => {
+        const rd = ROLE_DEFS[p.role]; if (!rd) return;
+        const posKey = rd.phase[ph.k]; if (!posKey) return;
+        if (!posMap[posKey]) posMap[posKey] = [];
+        if (p.name.trim()) posMap[posKey].push(p.name.trim());
+      });
+      Object.entries(posMap).forEach(([posKey, names]) => {
+        const meta = POS_META[posKey] || {line1:posKey, line2:'', color:'jungle'};
+        const emoji = ROLE_EMOJI[meta.color] || '⚪';
+        t += `${emoji} ${meta.line1}｜${meta.line2}：${names.length ? names.join('、') : '（未填）'}\n`;
+      });
+    }
+    // Defence always shown
+    const defMap = {};
+    DEFENSE.forEach(p => {
+      if (!defMap[p.pos]) defMap[p.pos] = [];
+      if (p.name.trim()) defMap[p.pos].push(p.name.trim());
+    });
+    Object.entries(DEF_POS_DEFS).forEach(([pos, pd]) => {
+      const names = defMap[pos] || [];
+      t += `⚫ 防守隊｜${pd.label}：${names.length ? names.join('、') : '（未填）'}\n`;
     });
   });
   t += '\n' + '━'.repeat(24);
@@ -657,9 +698,10 @@ function copyModal() {
     .catch(() => { ta.select(); document.execCommand('copy'); alert('✅ 已複製！'); });
 }
 function resetAll() {
-  if (!confirm('確定要清空所有名字嗎？')) return;
-  GROUPS.forEach(g => { g.players = g.players.map(() => ''); });
+  if (!confirm('確定要清空所有名單嗎？')) return;
+  VANGUARD = []; DEFENSE = [];
   renderAssignment(); renderMap(); renderInfo();
+  if (IS_COMMANDER) saveToFirebase();
 }
 
 // ─── PDF GENERATION ──────────────────────────────────────────
@@ -700,25 +742,35 @@ function renderPhaseToDataUrl(ph) {
 
 function buildAssignTable(phKey) {
   var rows = '';
-  GROUPS.forEach(function(g) {
-    var pd = g[phKey]; if (!pd) return;
-    var clr = ROLE_CLR[pd.role] || '#6e7681';
-    var nameStr;
-    if (pd.role === 'split15') {
-      var euc = getGroup('g_euc');
-      var n0 = (euc.players[0]||'').trim()||'?';
-      var n1 = (euc.players[1]||'').trim()||'?';
-      nameStr = n0 + '→炸A ／ ' + n1 + '→炸B';
-    } else {
-      var ns = phaseNames(g, phKey);
-      nameStr = ns.length ? ns.join('、') : '（未填）';
-    }
+  if (phKey !== 'kai') {
+    var posMap = {};
+    VANGUARD.forEach(function(p) {
+      var rd = ROLE_DEFS[p.role]; if (!rd) return;
+      var posKey = rd.phase[phKey]; if (!posKey) return;
+      if (!posMap[posKey]) posMap[posKey] = [];
+      if (p.name.trim()) posMap[posKey].push(p.name.trim());
+    });
+    Object.keys(posMap).forEach(function(posKey) {
+      var meta = POS_META[posKey] || {line1:posKey, line2:'', color:'jungle'};
+      var clr = ROLE_CLR[meta.color] || '#6e7681';
+      rows += '<tr>'
+        + '<td style="color:' + clr + ';padding:4px 7px;border-bottom:1px solid #1c2128;font-size:11px;font-weight:700;white-space:nowrap">'
+        + meta.line1 + '｜' + meta.line2 + '</td>'
+        + '<td style="padding:4px 7px;border-bottom:1px solid #1c2128;font-size:11px;font-weight:600;color:#e6edf3">'
+        + (posMap[posKey].length ? posMap[posKey].join('、') : '（未填）') + '</td></tr>';
+    });
+  }
+  var defMap = {};
+  DEFENSE.forEach(function(p) {
+    if (!defMap[p.pos]) defMap[p.pos] = [];
+    if (p.name.trim()) defMap[p.pos].push(p.name.trim());
+  });
+  Object.keys(DEF_POS_DEFS).forEach(function(pos) {
+    var pd2 = DEF_POS_DEFS[pos];
     rows += '<tr>'
-      + '<td style="color:' + clr + ';padding:4px 7px;border-bottom:1px solid #1c2128;'
-      + 'font-size:11px;font-weight:700;white-space:nowrap">'
-      + (ROLE_EMOJI[pd.role]||'⚪') + ' ' + g.label + '</td>'
+      + '<td style="color:#a855f7;padding:4px 7px;border-bottom:1px solid #1c2128;font-size:11px;font-weight:700;white-space:nowrap">防守隊｜' + pd2.label + '</td>'
       + '<td style="padding:4px 7px;border-bottom:1px solid #1c2128;font-size:11px;font-weight:600;color:#e6edf3">'
-      + nameStr + '</td></tr>';
+      + ((defMap[pos]||[]).length ? defMap[pos].join('、') : '（未填）') + '</td></tr>';
   });
   return '<table style="width:100%;border-collapse:collapse;background:#0d1117">' + rows + '</table>';
 }
@@ -823,7 +875,7 @@ async function generatePDF() {
   if (!window._VIEWER) return;
   try {
     var _vd = JSON.parse(document.getElementById('pd').textContent);
-    GROUPS.forEach(function(g) { if (_vd[g.id]) g.players = _vd[g.id]; });
+    if (_vd.v) VANGUARD = _vd.v; if (_vd.d) DEFENSE = _vd.d;
   } catch(e) { console.warn('viewer load err', e); }
   // Hide editing UI
   ['assign-sect','actions','modal-overlay'].forEach(function(cls) {
@@ -841,25 +893,15 @@ async function generatePDF() {
 
 // ─── GENERATE MEMBER HTML ─────────────────────────────────────
 function generateMemberHtml() {
-  // Capture current player data from JS memory
-  var pd = {};
-  GROUPS.forEach(function(g) { pd[g.id] = g.players.slice(); });
-  var hasAny = GROUPS.some(function(g) {
-    return g.players.some(function(p) { return p && p.trim(); });
-  });
+  var hasAny = VANGUARD.some(function(p){return p.name&&p.name.trim();})
+             || DEFENSE.some(function(p){return p.name&&p.name.trim();});
   if (!hasAny && !confirm('目前名單為空，確定要生成成員版嗎？')) return;
-
-  // Get full page HTML (includes base64 map in img src)
   var html = document.documentElement.outerHTML;
-
-  // Inject: player JSON + viewer flag — before </head>
   var inj = '<scr'+'ipt id="pd" type="application/json">'
-    + JSON.stringify(pd)
+    + JSON.stringify({v: VANGUARD, d: DEFENSE})
     + '<\/scr'+'ipt>'
     + '<scr'+'ipt>window._VIEWER=true;<\/scr'+'ipt>';
   html = html.replace('</head>', inj + '</head>');
-
-  // Download
   var blob = new Blob([html], {type:'text/html;charset=utf-8'});
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
@@ -884,7 +926,7 @@ var _db    = firebase.database();
 var _dbRef = _db.ref('baiye/players');
 
 var IS_COMMANDER = false;
-var CMD_PASSWORD = 'wenjunyudashuaige';  // 指揮密碼，可自行修改
+var CMD_PASSWORD = 'fengqiangleh';  // 指揮密碼，可自行修改
 var _fbSaving = false;
 
 function tryLogin() {
@@ -919,19 +961,18 @@ function memberLogin() {
 }
 
 function saveToFirebase() {
-  var pd = {};
-  GROUPS.forEach(function(g) { pd[g.id] = g.players.slice(); });
   _fbSaving = true;
-  _dbRef.set(pd);
+  _dbRef.set({v: VANGUARD, d: DEFENSE});
 }
 
-// Real-time listener — fires on connect and whenever data changes
+// Real-time listener
 _dbRef.on('value', function(snap) {
   if (_fbSaving) { _fbSaving = false; return; }
   var data = snap.val();
   if (!data) return;
-  GROUPS.forEach(function(g) { if (data[g.id]) g.players = data[g.id]; });
-  if (!IS_COMMANDER) renderAssignment();
+  if (data.v) VANGUARD = data.v;
+  if (data.d) DEFENSE  = data.d;
+  renderAssignment();
   renderMap();
   renderInfo();
 });
