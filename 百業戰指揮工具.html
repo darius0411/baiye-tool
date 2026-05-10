@@ -288,6 +288,7 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;
     <span class="fs-tb-title">🗺️ 全螢幕地圖</span>
     <div class="fs-div"></div>
     <button class="fsbtn on" id="fsBtnPan" onclick="fsSetTool('pan')">🖐 移動</button>
+    <button class="fsbtn" id="fsBtnMove" onclick="fsSetTool('move')">🔀 拖標誌</button>
     <button class="fsbtn" id="fsBtnPen" onclick="fsSetTool('pen')">✏️ 畫筆</button>
     <button class="fsbtn" id="fsBtnErase" onclick="fsSetTool('eraser')">⬜ 橡皮擦</button>
     <button class="fsbtn" onclick="fsClear()">🗑️ 清除</button>
@@ -420,10 +421,10 @@ const POS_META = {
   'dragon_team':  {line1:'搶龍', line2:'全員出動！',      color:'dragon'},
   'zhaji_a_rally':{line1:'炸雞A',line2:'上路集結',       color:'zhaji'},
   'zhaji_b_rally':{line1:'炸雞B',line2:'下路集結',       color:'zhaji'},
-  'our_up_base':  {line1:'防守隊',line2:'自家上路基地',  color:'def'},
-  'our_up_center':{line1:'防守隊',line2:'自家上路靠中',  color:'def'},
-  'our_lo_center':{line1:'防守隊',line2:'自家下路靠中',  color:'def'},
-  'our_lo_base':  {line1:'防守隊',line2:'自家下路基地',  color:'def'},
+  'our_up_base':  {line1:'防守隊',line2:'自家上野靠基地', color:'def'},
+  'our_up_center':{line1:'防守隊',line2:'自家上野靠中路', color:'def'},
+  'our_lo_center':{line1:'防守隊',line2:'自家下野靠中路', color:'def'},
+  'our_lo_base':  {line1:'防守隊',line2:'自家下野靠基地', color:'def'},
 };
 
 let VANGUARD = []; // [{name:'', role:'tree'}]
@@ -562,8 +563,8 @@ function renderMap() {
 
   if (phase === 'kai') {
     // Kai phase: show 先鋒隊1 / 先鋒隊2 as static markers
-    h += makeMarker('ene_up_center', 'jungle', '先鋒隊1', '入侵上路', [], 0, 0, 0);
-    h += makeMarker('ene_lo_center', 'jungle', '先鋒隊2', '入侵下路', [], 0, 0, 0);
+    h += makeMarker('ene_up_center', 'jungle', '先鋒隊1', '入侵上野', [], 0, 0, 0);
+    h += makeMarker('ene_lo_center', 'jungle', '先鋒隊2', '入侵下野', [], 0, 0, 0);
   } else {
     // Group VANGUARD by position for current phase
     const posMap = {};
@@ -1086,6 +1087,32 @@ _dbRef.on('value', function(snap) {
 // ── Init ──
 renderAssignment(); renderMap(); renderInfo();
 
+// ─── FULLSCREEN DRAG ─────────────────────────────────────────
+var _fsDragPos={},_fsDragTarget=null,_fsDragSVGX=0,_fsDragSVGY=0,_fsDragODX=0,_fsDragODY=0;
+function _fsMkG(k,h){var d=_fsDragPos[k]||{dx:0,dy:0};return '<g data-pos="'+k+'" transform="translate('+d.dx+','+d.dy+')">' +h+'</g>';}
+function renderFsMap(){
+  var h='';
+  if(phase==='kai'){
+    h+=_fsMkG('ene_up_center',makeMarker('ene_up_center','jungle','先鋒隊1','入侵上野',[],0,0,0));
+    h+=_fsMkG('ene_lo_center',makeMarker('ene_lo_center','jungle','先鋒隊2','入侵下野',[],0,0,0));
+  } else {
+    var pm={};
+    VANGUARD.forEach(function(p){if(!p.name.trim())return;var rd=ROLE_DEFS[p.role];if(!rd)return;var pk=rd.phase[phase];if(!pk)return;if(!pm[pk])pm[pk]=[];pm[pk].push(p.name.trim());});
+    Object.keys(pm).forEach(function(pk){var meta=POS_META[pk]||{line1:pk,line2:'',color:'jungle'};h+=_fsMkG(pk,makeMarker(pk,meta.color,meta.line1,meta.line2,shortN(pm[pk]),0,0,0));});
+  }
+  var dm={};
+  DEFENSE.forEach(function(p){if(!p.name.trim())return;if(!dm[p.pos])dm[p.pos]=[];dm[p.pos].push(p.name.trim());});
+  Object.keys(DEF_POS_DEFS).forEach(function(pos){var meta=POS_META[pos];var names=dm[pos]||[];h+=_fsMkG(pos,makeMarker(pos,meta.color,meta.line1,meta.line2,shortN(names),0,0,0));});
+  h+=_fsMkG('_bl',baseLabel(40,MH/2,baseR?'敵方|基地':'我方|基地',baseR?'#ef4444':'#3b82f6'));
+  h+=_fsMkG('_br',baseLabel(MW-40,MH/2,baseR?'我方|基地':'敵方|基地',baseR?'#3b82f6':'#ef4444'));
+  Object.keys(CAMP_DOTS).forEach(function(k){h+=makeCampDot(k);});
+  document.getElementById('fsMarkersG').innerHTML=h;
+}
+function _fsSvgPt(e){var svg=document.getElementById('fsSvg'),r=svg.getBoundingClientRect();var cx=e.touches?e.touches[0].clientX:e.clientX,cy=e.touches?e.touches[0].clientY:e.clientY;return{x:(cx-r.left)/r.width*MW,y:(cy-r.top)/r.height*MH};}
+function _fsFindMkr(sx,sy){var cands=Object.keys(BASE_POS).concat(['_bl','_br']),best=null,bestD=70;cands.forEach(function(k){var cx,cy;if(k==='_bl'){cx=40;cy=MH/2;}else if(k==='_br'){cx=MW-40;cy=MH/2;}else{var p=getPos(k);if(!p)return;cx=p.x;cy=p.y;}var d=_fsDragPos[k]||{dx:0,dy:0};cx+=d.dx;cy+=d.dy;var dist=Math.sqrt((sx-cx)*(sx-cx)+(sy-cy)*(sy-cy));if(dist<bestD){bestD=dist;best=k;}});return best;}
+function _fsMvDown(e){if(_fsTool!=='move')return;var pt=_fsSvgPt(e);_fsDragTarget=_fsFindMkr(pt.x,pt.y);if(_fsDragTarget){document.getElementById('fsSvg').style.cursor='grabbing';_fsDragSVGX=pt.x;_fsDragSVGY=pt.y;var d=_fsDragPos[_fsDragTarget]||{dx:0,dy:0};_fsDragODX=d.dx;_fsDragODY=d.dy;e.preventDefault();}}
+function _fsMvMove(e){if(!_fsDragTarget)return;var pt=_fsSvgPt(e);_fsDragPos[_fsDragTarget]={dx:_fsDragODX+(pt.x-_fsDragSVGX),dy:_fsDragODY+(pt.y-_fsDragSVGY)};renderFsMap();e.preventDefault();}
+function _fsMvUp(){if(_fsDragTarget){document.getElementById('fsSvg').style.cursor='grab';_fsDragTarget=null;}}
 // ─── FULLSCREEN MAP (native browser fullscreen) ──────────────
 var _fsTool = 'pen';
 var _fsZoom = 1.0;
@@ -1096,9 +1123,8 @@ var _fsPenSize = 5;
 var _fsNatW = 1484, _fsNatH = 725; // map natural size
 
 function openFullscreen() {
-  // Populate map content
+  _fsDragPos = {};
   document.getElementById('fsMapImg').src = document.getElementById('mainMapImg').src;
-  document.getElementById('fsMarkersG').innerHTML = document.getElementById('markers').innerHTML;
   var c = document.getElementById('fsCanvas');
   c.getContext('2d').clearRect(0, 0, c.width, c.height);
   _fsZoom = 1.0;
@@ -1109,10 +1135,11 @@ function openFullscreen() {
   var rq = ov.requestFullscreen || ov.webkitRequestFullscreen || ov.mozRequestFullScreen;
   if (rq) rq.call(ov);
   // Fit map to screen after a tick
-  setTimeout(_fsFitMap, 80);
+  setTimeout(function(){ _fsFitMap(); renderFsMap(); }, 80);
 }
 
 function closeFsOverlay() {
+  _fsDragPos = {};
   var ov = document.getElementById('fsOverlay');
   ov.classList.remove('show');
   var ex = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen;
@@ -1145,21 +1172,18 @@ function _fsFitMap() {
   document.getElementById('fsZoomLbl').textContent = Math.round(_fsZoom * 100) + '%';
 }
 
-function fsSetTool(t) {
-  _fsTool = t;
-  document.getElementById('fsBtnPan').classList.toggle('on', t === 'pan');
-  document.getElementById('fsBtnPen').classList.toggle('on', t === 'pen');
-  document.getElementById('fsBtnErase').classList.toggle('on', t === 'eraser');
-  var area = document.getElementById('fsMapArea');
-  var canvas = document.getElementById('fsCanvas');
-  if (t === 'pan') {
-    canvas.style.pointerEvents = 'none';  // clicks pass through to area
-    area.classList.add('pan-mode');
-  } else {
-    canvas.style.pointerEvents = 'auto';
-    area.classList.remove('pan-mode');
-    canvas.style.cursor = t === 'pen' ? 'crosshair' : 'cell';
-  }
+function fsSetTool(t){
+  _fsTool=t;
+  ['fsBtnPan','fsBtnMove','fsBtnPen','fsBtnErase'].forEach(function(id){var el=document.getElementById(id);if(el)el.classList.remove('on');});
+  var bm={'pan':'fsBtnPan','move':'fsBtnMove','pen':'fsBtnPen','eraser':'fsBtnErase'};
+  var a=document.getElementById(bm[t]);if(a)a.classList.add('on');
+  var area=document.getElementById('fsMapArea'),canvas=document.getElementById('fsCanvas'),svg=document.getElementById('fsSvg');
+  canvas.style.pointerEvents='auto';canvas.style.cursor='crosshair';
+  svg.style.pointerEvents='none';svg.style.cursor='';
+  area.classList.remove('pan-mode');
+  if(t==='pan'){canvas.style.pointerEvents='none';area.classList.add('pan-mode');}
+  else if(t==='move'){canvas.style.pointerEvents='none';svg.style.pointerEvents='all';svg.style.cursor='grab';}
+  else if(t==='eraser'){canvas.style.cursor='cell';}
 }
 function fsPickColor(clr, el) {
   _fsPenColor = clr;
@@ -1237,7 +1261,14 @@ function fsZoomReset() { _fsZoom = 1.0; _fsFitMap(); }
   document.addEventListener('DOMContentLoaded', function() {
     document.addEventListener('fullscreenchange', _onFsChange);
     document.addEventListener('webkitfullscreenchange', _onFsChange);
-
+    var fsSvg=document.getElementById('fsSvg');
+    fsSvg.addEventListener('mousedown',_fsMvDown);
+    fsSvg.addEventListener('mousemove',_fsMvMove);
+    fsSvg.addEventListener('mouseup',_fsMvUp);
+    fsSvg.addEventListener('mouseleave',_fsMvUp);
+    fsSvg.addEventListener('touchstart',_fsMvDown,{passive:false});
+    fsSvg.addEventListener('touchmove',_fsMvMove,{passive:false});
+    fsSvg.addEventListener('touchend',_fsMvUp);
     // Canvas: drawing events
     var c = document.getElementById('fsCanvas');
     c.addEventListener('mousedown', onDrawDown);
